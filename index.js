@@ -20,6 +20,7 @@ const Module = class {
 
         Node_Write(event, string) {
             Random, suffix, 1, 100000
+            FileEncoding, UTF-8-RAW
             file := FileOpen("${this.dir}/stream/ahk-node/ahk-node-" . suffix . ".stream", "w")
             file.write("event=" . event . "\`n" . string)
             file.close()
