@@ -117,7 +117,7 @@ const Module = class {
 
                     message := "\`n".join(lines)
     
-                    Node_OnMessage(event, message)
+                    ;Node_OnMessage(event, message)
     
                 }
             }
