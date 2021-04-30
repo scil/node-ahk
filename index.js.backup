@@ -1,0 +1,203 @@
+const loadIniFile = require('read-ini-file')
+const fs = require('fs');
+const os = require('os');
+
+const Module = class {
+    constructor() {
+        this.ahk = `${os.tmpdir()}/${Date.now()}.ahk`;
+        this.dir = __dirname;
+        this.script = `
+        #Singleinstance, force
+
+        IniRead, REMOVE_AHK_FILE, ${this.dir}/config.ini, message, REMOVE_AHK_FILE
+
+        lastFileContent := ""
+        file := FileOpen("${this.dir}/stream/ahk-node/ahk-node.stream", "w")
+        file.write("event=" . REMOVE_AHK_FILE)
+        file.close()
+
+        Node_SendMessage(event, string) {
+            file := FileOpen("${this.dir}/stream/ahk-node/ahk-node.stream", "w")
+            file.write("event=" . event . "\`n" . "value=" . string)
+            file.close()
+        }
+
+        OnMessage(0x201,"WM_LBUTTONDOWN")
+        WM_LBUTTONDOWN(wParam,lParam){
+            IniRead, EVENT_CLICK_LEFT, ${this.dir}/config.ini, event, EVENT_CLICK_LEFT
+            MouseX := lParam & 0xFFFF
+            MouseY := lParam >> 16
+
+            file := FileOpen("${this.dir}/stream/ahk-node/ahk-node.stream", "w")
+            file.write("event=" . EVENT_CLICK_LEFT . "\`n" . "x=" . MouseX . "\`n" . "y=" . MouseY)
+            file.close()
+        }
+
+        Gui_AddPicture(Options, Colour) {
+            FileName := A_Temp "\" Colour ".bmp"
+            Handle := DllCall("CreateFile", "Str", FileName, "Int", 0x40000000
+                , "Int", 0, "Int", 0, "Int", 4, "Int", 0, "Int", 0)
+        
+            ;---------------------------------------------------------------------------
+            Picture =
+            ;---------------------------------------------------------------------------
+                ( Join LTrim
+                    42 4D 3A 00 | 00 00 00 00 | 00 00 36 00 | 00 00 28 00
+                    00 00 01 00 | 00 00 01 00 | 00 00 01 00 | 18 00 00 00
+                    00 00 04 00 | 00 00 00 00 | 00 00 00 00 | 00 00 00 00
+                    00 00 00 00 | 00 00
+                )
+        
+            Picture .= SubStr(Colour, 7, 2)
+                    .  SubStr(Colour, 4, 2)
+                    .  SubStr(Colour, 1, 2) "00"
+            StringReplace, Picture, Picture, |,, All
+            StringReplace, Picture, Picture, %A_Space%,, All
+        
+            Loop, % StrLen(Picture) // 2 {
+                StringLeft, Hex, Picture, 2
+                StringTrimLeft, Picture, Picture, 2
+                DllCall("WriteFile", "Int", Handle, "CharP", "0x" Hex
+                    , "Int", 1, "IntP", BytesWritten, "Int", 0)
+            }
+            DllCall("CloseHandle", "Int", Handle)
+            Gui, 1:Add, Picture, %Options%, %FileName%
+            FileDelete, %FileName%
+        }
+
+        setTimer, checkFile, 1
+        `;
+        this.checker = `
+        checkFile:
+            fileread newFileContent, ${this.dir}/stream/node-ahk/node-ahk.stream
+            if(newFileContent != lastFileContent) {
+                IniRead, REMOVE_AHK_FILE, ${this.dir}/config.ini, message, REMOVE_AHK_FILE
+                IniRead, MESSAGE_STRING, ${this.dir}/config.ini, message, MESSAGE_STRING
+                IniRead, MESSAGE_JSON, ${this.dir}/config.ini, message, MESSAGE_JSON        
+                
+                lastFileContent := newFileContent
+                lines := StrSplit(newFileContent, "\`n")
+                event := StrSplit(StrSplit(lines[1], "=")[2], "\`r")[1]
+                param1 := ""
+                param2 := ""
+                param3 := ""
+                param4 := ""
+
+                lines.remove(1)
+
+                For key, val In lines {
+                    if (A_Index = 1) {
+                        v := StrSplit(val, "=")[2]
+                        
+                        param1 = %v%
+                    }
+                    else if (A_Index = 2) {
+                        v := StrSplit(val, "=")[2]
+                        param2 = %v%
+                    }
+                    else if (A_Index = 3) {
+                        v := StrSplit(val, "=")[2]
+                        param3 = %v%
+                    }
+                    else if (A_Index = 4) {
+                        v := StrSplit(val, "=")[2]
+                        param4 = %v%
+                    }
+                }
+
+                Node_OnMessage(event, param1, param2, param3, param4)
+
+            }
+        return
+        `
+        this.process = null;
+        this.counters = {
+            node: 0,
+            ahk : 0
+        }
+
+        this.events = {};
+        this.encryption = loadIniFile.sync(__dirname + '/config.ini')
+        console.log(this.encryption)
+    }
+
+    on(event, listener) { "object" != typeof this.events[event] && (this.events[event] = []), this.events[event].push(listener); }
+    emit(event) { var i, listeners, length, args = [].slice.call(arguments, 1); if ("object" == typeof this.events[event]) for (length = (listeners = this.events[event].slice()).length, i = 0; i < length; i++)listeners[i].apply(this, args); }
+
+    gui() {
+        var code = `Gui`;
+        for (const argument in arguments) {
+            code += `, ${arguments[argument]}`
+        }
+        this.script += `${code}\n`
+        return this;
+    }
+
+    import(string) {
+        this.script += `${string}\n`;
+        return this;
+    }
+
+    write(event, string) {
+        fs.writeFileSync(__dirname + '/stream/node-ahk/node-ahk.stream', `event=${event}\nvalue=${string}`,'utf8')
+    }
+
+    run() {
+        var counter = 0;
+        fs.writeFile(__dirname + '/stream/node-ahk/node-ahk.stream', '', 'utf8', err => { if (!err) counter++; })
+        fs.writeFile(__dirname + '/stream/ahk-node/ahk-node.stream', '', 'utf8', err => { if (!err) counter++; })
+
+        while (counter < 2) {
+            if (counter = 2) {
+                fs.writeFile(this.ahk, this.script + this.checker, err => {
+                    if (err) return;
+        
+                    const child = require('child_process').spawn("C:/Program Files/AutoHotkey/AutoHotkey.exe", [this.ahk]);
+                    child.on("close", () => {
+                        process.exit();
+                    })
+        
+                    fs.watchFile(__dirname + '/stream/ahk-node/ahk-node.stream', { interval: 1 }, () => {
+                        var msg = fs.readFileSync(__dirname + '/stream/ahk-node/ahk-node.stream', 'utf8');
+                        
+                        var event = null;
+                        var args = {}
+        
+                        msg.split('\n').forEach((text) => {
+                            if (text.split('=')[0] === 'event') event = text.split('=')[1]
+                            else {
+                                args[text.split('=')[0]] = text.split('=')[1]
+                            }
+                        })
+        
+                        switch (event) {
+                            case this.encryption['message']['REMOVE_AHK_FILE']:
+                                setTimeout(() => {
+                                    if (fs.existsSync(this.ahk)) {
+                                        fs.unlinkSync(this.ahk);
+                                    }
+                                }, 100)
+                                break;
+                            case this.encryption['message']['MESSAGE_STRING']:
+                                console.log(val);
+                                break;
+                            case this.encryption['message']['MESSAGE_JSON']:
+                                console.log(val);
+                                break;
+                            case this.encryption['event']['EVENT_CLICK_LEFT']:
+                                this.emit('mouseclick-left', args)
+                                break;
+                            default:
+                                this.emit('message', event, args.value)
+                        }
+                    })
+        
+                })
+                break;
+            }
+        }
+        return this;
+    }
+}
+
+module.exports = Module;

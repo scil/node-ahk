@@ -1,0 +1,43 @@
+{
+  "_from": "node-ahk",
+  "_id": "node-ahk@1.0.7",
+  "_inBundle": false,
+  "_integrity": "sha1-3sBoQcaX8ORNZrPPDrSsHtFLfpA=",
+  "_location": "/node-ahk",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "tag",
+    "registry": true,
+    "raw": "node-ahk",
+    "name": "node-ahk",
+    "escapedName": "node-ahk",
+    "rawSpec": "",
+    "saveSpec": null,
+    "fetchSpec": "latest"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.nlark.com/node-ahk/download/node-ahk-1.0.7.tgz",
+  "_shasum": "dec06841c697f0e44d66b3cf0eb4ac1ed14b7e90",
+  "_spec": "node-ahk",
+  "_where": "D:\\vagrant\\www\\kids_friend",
+  "author": {
+    "name": "Niiko"
+  },
+  "bundleDependencies": false,
+  "dependencies": {
+    "ms": "^2.1.2",
+    "read-ini-file": "^3.0.0"
+  },
+  "deprecated": false,
+  "description": "node-ahk is a library that allows **NodeJS** to communicate with **autohotkey**.",
+  "license": "ISC",
+  "main": "index.js",
+  "name": "node-ahk",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "1.0.7"
+}
